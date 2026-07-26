@@ -1,4 +1,4 @@
--- Plalette Scripts · MvSD DUELS · Rayfield Gen2 FINAL v5
+-- Plalette Scripts · MvSD DUELS · Rayfield Gen2 FINAL v6
 local PassScreen = Instance.new("ScreenGui")
 PassScreen.Parent = game:GetService("CoreGui")
 
@@ -144,36 +144,51 @@ function LoadRayfield()
     FCI.Visible = false
     local AC = nil
 
-    -- NUR Spieler in der Nähe UND mit Waffe
-    local function IsValidTarget(player)
-        if not player then return false end
+    -- NUR Gegner mit ANDERER Team-Farbe (über BodyColors)
+    local function GetTeamColor(player)
+        if not player.Character then return nil end
+        local torso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("UpperTorso") or player.Character:FindFirstChild("HumanoidRootPart")
+        if not torso then return nil end
+        return torso.BrickColor
+    end
+
+    local myTeamColor = nil
+    local function UpdateMyTeam()
+        if not LocalPlayer.Character then return end
+        myTeamColor = GetTeamColor(LocalPlayer)
+    end
+
+    local function IsEnemy(player)
         if player == LocalPlayer then return false end
         if not player.Character then return false end
         if not LocalPlayer.Character then return false end
         
+        -- Team-Farbe check (NUR andere Farbe = Gegner)
+        if myTeamColor then
+            local theirColor = GetTeamColor(player)
+            if theirColor and theirColor == myTeamColor then
+                return false -- Gleiche Farbe = Teammate
+            end
+        end
+        
+        -- Distanz-Check
         local hrp = player.Character:FindFirstChild("HumanoidRootPart")
         local myHrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not hrp or not myHrp then return false end
-        
-        -- Distanz-Check
         if (hrp.Position - myHrp.Position).Magnitude > 200 then return false end
         
-        -- Waffen-Check (nur im Spiel)
-        local hasTool = false
-        if player.Character:FindFirstChildOfClass("Tool") then hasTool = true end
-        if player.Backpack and player.Backpack:FindFirstChildOfClass("Tool") then hasTool = true end
-        
-        return hasTool
+        return true
     end
 
     local function GT()
         if not LocalPlayer.Character then return nil end
+        UpdateMyTeam()
         local b = 99999
         local t = nil
         local cx = Camera.ViewportSize.X / 2
         local cy = Camera.ViewportSize.Y / 2
         for _, p in ipairs(Players:GetPlayers()) do
-            if IsValidTarget(p) then
+            if IsEnemy(p) then
                 local h = p.Character:FindFirstChild("Head")
                 if h then
                     local pos, on = Camera:WorldToViewportPoint(h.Position)
@@ -189,9 +204,9 @@ function LoadRayfield()
         return t
     end
 
-    -- ESP sauber updaten (ALTE zuerst löschen, dann NEUE zeichnen)
+    -- ESP: KOMPLETT neu jedes Frame, NUR Gegner, MAX 5
     local function UpdateESP()
-        -- ALLES löschen
+        -- Alles löschen
         for uid, drawings in pairs(ESPCache) do
             pcall(function() drawings[1]:Remove() end)
             pcall(function() drawings[2]:Remove() end)
@@ -199,10 +214,12 @@ function LoadRayfield()
         end
         
         if not ESPOn then return end
+        UpdateMyTeam()
         
-        -- NUR gültige Gegner neu zeichnen
+        local drawn = 0
         for _, p in ipairs(Players:GetPlayers()) do
-            if IsValidTarget(p) then
+            if drawn >= 5 then break end -- MAX 5 ESP-Boxen
+            if IsEnemy(p) then
                 local h = p.Character:FindFirstChild("Head")
                 local r = p.Character:FindFirstChild("HumanoidRootPart")
                 if h and r then
@@ -229,6 +246,7 @@ function LoadRayfield()
                         nm.Visible = true
                         
                         ESPCache[p.UserId] = {bx, nm}
+                        drawn = drawn + 1
                     end
                 end
             end
@@ -304,7 +322,7 @@ function LoadRayfield()
         while task.wait(0.2) do
             if HitboxOn then
                 for _, p in ipairs(Players:GetPlayers()) do
-                    if IsValidTarget(p) then
+                    if IsEnemy(p) then
                         local r = p.Character:FindFirstChild("HumanoidRootPart")
                         if r then r.Size = Vector3.new(HitboxVal, HitboxVal, HitboxVal) r.Transparency = 0.4 end
                     end
@@ -313,9 +331,9 @@ function LoadRayfield()
         end
     end)
 
-    -- ESP (JEDES MAL KOMPLETT NEU, kein Cache-Müll)
+    -- ESP Update
     task.spawn(function()
-        while task.wait(0.08) do
+        while task.wait(0.1) do
             UpdateESP()
         end
     end)
@@ -388,7 +406,7 @@ function LoadRayfield()
     CombatTab:CreateSlider({ name = "Hitbox Size", range = {1, 10}, increment = 1, currentValue = 3, callback = function(v) HitboxVal = v end })
 
     VisualTab:CreateSection("ESP")
-    VisualTab:CreateToggle({ name = "Player ESP", currentValue = false, callback = function(v) ESPOn = v end })
+    VisualTab:CreateToggle({ name = "Player ESP (Max 5)", currentValue = false, callback = function(v) ESPOn = v end })
 
     MoveTab:CreateSection("Speed")
     MoveTab:CreateToggle({ name = "Speed Hack", currentValue = false, callback = function(v) SpeedOn = v end })
@@ -403,7 +421,7 @@ function LoadRayfield()
     MoveTab:CreateSlider({ name = "Fly Speed", range = {10, 80}, increment = 5, currentValue = 30, callback = function(v) FlyVal = v end })
 
     InfoTab:CreateButton({ name = "Copy Discord", callback = function() setclipboard("https://discord.gg/duhxrB85tW") Window:Notify({ title = "Copied!", content = "discord.gg/duhxrB85tW" }) end })
-    InfoTab:CreateParagraph({ title = "Plalette Scripts", content = "MvSD DUELS\nDiscord: discord.gg/duhxrB85tW\n\nFOV Aimbot · Hitbox · ESP\nSpeed · Jump · Fly (G)" })
+    InfoTab:CreateParagraph({ title = "Plalette Scripts", content = "MvSD DUELS\n\nFOV Aimbot · Hitbox · ESP (Max 5)\nSpeed · Jump · Fly (G)" })
 
     Window:Notify({ title = "Plalette Scripts", content = "MvSD DUELS loaded!" })
 end
